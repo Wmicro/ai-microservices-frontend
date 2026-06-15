@@ -1,0 +1,29 @@
+{
+  // 继承 Vue 官方的 DOM 相关 TypeScript 配置
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "compilerOptions": {
+    // 指定 TypeScript 编译信息缓存文件路径（提升编译速度）
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    // 设置基础路径（用于解析路径别名）
+    "baseUrl": ".",
+    // 配置路径别名
+    "paths": {
+      // @ 符号映射到 src 目录
+      "@/*": ["src/*"]
+    },
+    // 启用严格类型检查模式（推荐开启）
+    "strict": true,
+    // 禁止未使用的局部变量（帮助发现无用代码）
+    "noUnusedLocals": true,
+    // 禁止未使用的函数参数
+    "noUnusedParameters": true,
+    // 仅保留语法层面的类型擦除（优化编译）
+    "erasableSyntaxOnly": true,
+    // 禁止 switch 语句中的 fallthrough（case 没有 break）
+    "noFallthroughCasesInSwitch": true,
+    // 检查导入是否有未检查的副作用
+    "noUncheckedSideEffectImports": true
+  },
+  // 指定需要编译的文件范围
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
+}

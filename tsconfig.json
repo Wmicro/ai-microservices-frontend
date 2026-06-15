@@ -1,0 +1,11 @@
+{
+  // 指定编译输出的文件列表（此处为空，由子配置文件处理）
+  "files": [],
+  // 引用其他 TypeScript 配置文件（组合配置）
+  "references": [
+    // 应用代码的 TypeScript 配置
+    { "path": "./tsconfig.app.json" },
+    // 工具代码（如 vite.config.ts）的 TypeScript 配置
+    { "path": "./tsconfig.node.json" }
+  ]
+}
