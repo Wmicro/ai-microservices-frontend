@@ -1,5 +1,6 @@
 ---
 alwaysApply: true
+description: Git 提交规范 — 分支策略、Commit Message 格式、VS Code 操作指南
 ---
 
 # Git 提交规范（VS Code 优化版）
@@ -72,7 +73,9 @@ chore(deps): 升级 vue 至 3.5.x
 | `refactor` | ♻️ | 代码重构（不新增功能、不修 bug） | `refactor(api): 抽取 axios 拦截器` |
 | `perf` | ⚡ | 性能优化 | `perf(chat): 消息列表虚拟滚动` |
 | `test` | ✅ | 测试新增/修改 | `test: 补充登录表单单元测试` |
-| `chore` | 🔧 | 构建/工具/依赖/配置变更 | `chore(deps): 升级 vite 到 6.x` |
+| `build` | 📦 | 构建系统或外部依赖变更 | `build: 升级 vite 到 6.x` |
+| `ci` | 👷 | CI/CD 配置变更 | `ci: 添加 GitHub Actions 自动部署` |
+| `chore` | 🔧 | 构建/工具/依赖/配置变更 | `chore(deps): 升级 vue 至 3.5.x` |
 | `revert` | ⏪ | 回退之前的提交 | `revert: 回退 feat(chat) 多轮上下文` |
 
 > 💡 在 VS Code Conventional Commits 扩展中，提交时会弹出类型选择列表，直接选择即可。
@@ -100,7 +103,7 @@ chore(deps): 升级 vue 至 3.5.x
 | 规则 | 说明 |
 |------|------|
 | **每次提交只做一件事** | 一个功能 / 一个 bug，不要在一个 commit 里改 10 个文件 |
-| **提交前必须通过编译** | VS Code 底部状态栏无红色 ✕；`npm run build` 无报错 |
+| **提交前必须通过编译** | VS Code 底部状态栏无红色 ✕；`npm run build && npm test` 无报错 |
 | **不提交构建产物** | `node_modules/`、`dist/`、`*.log`、`.DS_Store`、`.env` 必须在 `.gitignore` |
 | **禁止提交敏感信息** | 密码、Token、API Key、私钥 —— 提交了请立即清理并重写历史 |
 | **禁止 `git push -f` main** | 只允许在个人 feature 分支上强推 |
@@ -158,6 +161,7 @@ node_modules/
 dist/
 dist-ssr/
 *.local
+coverage/
 
 # 日志
 logs/
@@ -205,6 +209,7 @@ git reset --soft HEAD~1
 | 新建分支 | 左下角点击分支名 → "创建新分支..." |
 | 暂存文件 | 源代码管理面板文件右侧 `+` |
 | 提交 | 输入消息 → `Ctrl+Enter` |
+| 运行测试 | `npm test`（一次性）/ `npm run test:watch`（持续） |
 | 推送 | 同步按钮 / 源代码管理面板右上角 ↑ |
 | 查看历史 | GitLens 图标 / `git log` / Git Graph 扩展 |
 | 对比差异 | 源代码管理面板点击文件名（左右分屏显示） |
