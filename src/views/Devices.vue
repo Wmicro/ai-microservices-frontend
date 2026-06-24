@@ -78,14 +78,10 @@ import { ElMessage } from 'element-plus'
 import { Monitor, Refresh } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import type { UserDevice } from '@/types/auth'
+import { formatDate } from '@/utils/date'
 
 const authStore = useAuthStore()
 const loading = ref(false)
-
-function formatDate(date?: string) {
-  if (!date) return '-'
-  return date.replace('T', ' ').split('.')[0]
-}
 
 async function handleRefresh() {
   loading.value = true

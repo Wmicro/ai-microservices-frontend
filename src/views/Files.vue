@@ -45,24 +45,24 @@
 
       <el-table v-else :data="fileRecords" style="width: 100%" stripe v-loading="loading">
         <el-table-column type="index" label="#" width="60" />
-        <el-table-column prop="fileName" label="文件名" min-width="240">
+        <el-table-column prop="name" label="文件名" min-width="240">
           <template #default="{ row }">
             <div class="file-name-cell">
               <el-icon :size="18"><Document /></el-icon>
-              <span>{{ getFileName(row) }}</span>
+              <span>{{ row.name || '未命名' }}</span>
             </div>
           </template>
         </el-table-column>
         <el-table-column label="大小" width="120">
-          <template #default="{ row }">{{ formatSize(row.fileSize || row.size) }}</template>
+          <template #default="{ row }">{{ formatSize(row.size) }}</template>
         </el-table-column>
         <el-table-column label="类型" width="120">
           <template #default="{ row }">
-            <el-tag size="small" :type="getTypeTag(row.fileType || row.type)">{{ row.fileType || row.type || '未知' }}</el-tag>
+            <el-tag size="small" :type="getTypeTag(row.type)">{{ row.type || '未知' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="上传时间" width="180">
-          <template #default="{ row }">{{ formatDate(row.uploadTime || row.createTime) }}</template>
+          <template #default="{ row }">{{ formatDate(row.createTime) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -96,6 +96,7 @@ import { UploadFilled, Upload, Document, Refresh } from '@element-plus/icons-vue
 import type { UploadFile } from 'element-plus'
 import * as fileApi from '@/api/file'
 import type { FileInfo } from '@/types/file'
+import { formatDate } from '@/utils/date'
 
 const fileList = ref<UploadFile[]>([])
 const pendingFiles = ref<File[]>([])
@@ -127,10 +128,10 @@ async function handleUpload() {
   try {
     if (pendingFiles.value.length === 1) {
       const result = await fileApi.uploadFile(pendingFiles.value[0])
-      fileRecords.value.unshift(result as any)
+      fileRecords.value.unshift(result)
     } else {
       const results = await fileApi.uploadMultipleFiles(pendingFiles.value)
-      fileRecords.value = [...(results as any[]), ...fileRecords.value]
+      fileRecords.value = [...results, ...fileRecords.value]
     }
     ElMessage.success('文件上传成功')
     clearPending()
@@ -145,7 +146,7 @@ async function loadFiles() {
   loading.value = true
   try {
     const files = await fileApi.listFiles()
-    fileRecords.value = files as any
+    fileRecords.value = files
   } catch (err) {
     console.error(err)
   } finally {
@@ -154,13 +155,12 @@ async function loadFiles() {
 }
 
 async function viewContent(row: FileInfo) {
+  if (!row.id) {
+    ElMessage.info('该文件暂无内容可预览')
+    return
+  }
   try {
-    const fileId = row.fileId || row.id
-    if (!fileId) {
-      ElMessage.info('该文件暂无内容可预览')
-      return
-    }
-    const content = await fileApi.getFileContent(String(fileId))
+    const content = await fileApi.getFileContent(row.id)
     currentContent.value = content as string
     contentDialogVisible.value = true
   } catch (err) {
@@ -169,12 +169,10 @@ async function viewContent(row: FileInfo) {
 }
 
 async function deleteFile(row: FileInfo) {
+  if (!row.id) return
   try {
-    const fileId = row.fileId || row.id
-    if (fileId) await fileApi.deleteFile(String(fileId))
-    const idx = fileRecords.value.findIndex(
-      (r) => (r.fileId || r.id) === fileId
-    )
+    await fileApi.deleteFile(row.id)
+    const idx = fileRecords.value.findIndex((r) => r.id === row.id)
     if (idx >= 0) fileRecords.value.splice(idx, 1)
     ElMessage.success('删除成功')
   } catch (err) {
@@ -182,20 +180,11 @@ async function deleteFile(row: FileInfo) {
   }
 }
 
-function getFileName(row: FileInfo) {
-  return row.fileName || row.originalFileName || row.name || '未命名'
-}
-
 function formatSize(size?: number) {
   if (!size) return '未知'
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / 1024 / 1024).toFixed(2)} MB`
-}
-
-function formatDate(date?: string) {
-  if (!date) return '-'
-  return date.split('T')[0] + ' ' + date.split('T')[1]?.split('.')[0] || date
 }
 
 function getTypeTag(type?: string) {
@@ -283,5 +272,55 @@ onMounted(() => {
 }
 :deep(.el-upload-dragger) {
   padding: 36px 0 !important;
+}
+
+/* ========== 移动端适配 ========== */
+@media (max-width: 768px) {
+  .files-page {
+    gap: 12px;
+    padding: 4px;
+  }
+  .upload-section,
+  .files-list-section {
+    padding: 14px;
+    border-radius: 10px;
+  }
+  .section-header {
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .section-title {
+    font-size: 15px;
+  }
+  :deep(.el-upload-dragger) {
+    padding: 24px 12px !important;
+  }
+  :deep(.el-upload__text) {
+    font-size: 14px;
+  }
+  :deep(.el-upload__tip) {
+    font-size: 12px;
+  }
+  .upload-actions {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .upload-actions :deep(.el-button) {
+    flex: 1;
+    min-width: 0;
+  }
+  /* 表格横向滚动 */
+  :deep(.el-table) {
+    font-size: 13px;
+  }
+  :deep(.el-table .cell) {
+    padding: 10px 8px;
+  }
+  .content-preview {
+    padding: 12px;
+    font-size: 12px;
+    max-height: 60vh;
+  }
 }
 </style>

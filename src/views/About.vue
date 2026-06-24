@@ -116,7 +116,7 @@ const apiList = [
   { service: '对话服务', path: '/api/chat', method: 'GET', desc: '普通文本对话' },
   { service: '对话服务', path: '/api/stream', method: 'GET', desc: '流式 SSE 对话' },
   { service: '对话服务', path: '/api/chat/history', method: 'GET', desc: '获取对话历史' },
-  { service: '对话服务', path: '/api/chat/clear', method: 'POST', desc: '清空对话历史' },
+  { service: '对话服务', path: '/api/chat/history', method: 'DELETE', desc: '清空对话历史' },
   { service: '文件服务', path: '/api/files/upload', method: 'POST', desc: '上传文件' },
   { service: '文件服务', path: '/api/files', method: 'GET', desc: '获取文件列表' },
   { service: '文件服务', path: '/api/files/{id}/content', method: 'GET', desc: '获取文件内容' },

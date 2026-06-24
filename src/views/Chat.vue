@@ -1,533 +1,495 @@
 <template>
   <div class="chat-page">
-    <div class="chat-container">
-      <el-tabs v-model="activeTab" class="chat-tabs" type="card" @tab-change="onTabChange">
-        <!-- ========== Tab 1：普通对话 ========== -->
-        <el-tab-pane label="💬 普通对话（一次性返回）" name="normal">
-          <div class="chat-messages" ref="normalContainer">
-            <div v-if="normalMessages.length === 0" class="welcome-section">
-              <div class="welcome-icon">
-                <svg viewBox="0 0 1024 1024" width="56" height="56">
-                  <path fill="#409eff" d="M512 128C299.93 128 128 277.42 128 464c0 104.23 58.8 197.42 151.85 263.38L256 896h288l128-96c90.4-55.8 144-133.6 144-220.62 0-186.58-171.93-347.38-384-347.38z" />
-                </svg>
-              </div>
-              <h2 class="welcome-title">普通对话模式</h2>
-              <p class="welcome-desc">发送后等待后端完整生成，再一次性返回全部回答</p>
-              <div class="quick-questions">
-                <div v-for="(q, idx) in quickQuestions" :key="idx" class="quick-item" @click="onNormalQuick(q)">
-                  {{ q }}
-                </div>
-              </div>
-            </div>
+    <!-- 桌面端：左侧对话列表 -->
+    <ConversationSidebar class="desktop-only" />
 
-            <div
-              v-for="msg in normalMessages"
-              :key="msg.id"
-              :class="['message-row', msg.role === 'user' ? 'is-user' : 'is-assistant']"
+    <!-- 移动端：对话列表抽屉 -->
+    <el-drawer
+      v-model="drawerVisible"
+      direction="ltr"
+      size="85%"
+      :with-header="false"
+      class="conv-drawer"
+    >
+      <ConversationSidebar />
+    </el-drawer>
+
+    <!-- 右侧对话主区域 -->
+    <div class="chat-main">
+      <!-- 顶部工具栏 -->
+      <div class="chat-header">
+        <div class="header-left">
+          <!-- 移动端：汉堡按钮 -->
+          <button class="menu-btn mobile-only" @click="drawerVisible = true" aria-label="对话列表">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <div class="header-icon desktop-only">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </div>
+          <h2 class="chat-title">{{ chatTitle }}</h2>
+          <el-tag
+            v-if="chatStore.current?.model"
+            size="small"
+            type="primary"
+            effect="light"
+            round
+            class="model-badge desktop-only"
+          >
+            {{ chatStore.current.model }}
+          </el-tag>
+        </div>
+        <div class="header-right">
+          <div class="mode-toggle desktop-only" v-if="!isSingleMode">
+            <button
+              v-for="mode in visibleModes"
+              :key="mode"
+              :class="['mode-btn', { active: chatStore.currentMode === mode }]"
+              @click="handleSwitchMode(mode)"
             >
-              <div class="message-avatar">
-                <el-avatar :size="36" :style="{ background: msg.role === 'user' ? '#10b981' : '#409eff' }">
-                  {{ msg.role === 'user' ? 'U' : 'AI' }}
-                </el-avatar>
-              </div>
-              <div class="message-body">
-                <div class="message-meta">
-                  <span class="message-role">{{ msg.role === 'user' ? (authStore.username || '我') : 'AI 助手' }}</span>
-                  <span class="message-time">{{ msg.time }}</span>
-                </div>
-                <div class="message-bubble">
-                  <div v-if="msg.streaming" class="typing-indicator"><span></span><span></span><span></span></div>
-                  <div v-else class="message-content">{{ msg.content }}</div>
-                </div>
-              </div>
-            </div>
+              <span class="mode-icon">{{ mode === 'normal' ? '💬' : '⚡' }}</span>
+              <span>{{ mode === 'normal' ? '普通' : '流式' }}</span>
+            </button>
           </div>
-
-          <div class="chat-input-area">
-            <div class="input-wrapper">
-              <div class="input-topbar">
-                <el-select v-model="normalModel" size="default" :disabled="isNormalLoading" style="width: 240px">
-                  <el-option v-for="m in availableModels" :key="m.value" :label="m.label" :value="m.value" />
-                </el-select>
-                <span class="mode-badge normal">一次性返回</span>
-              </div>
-              <el-input
-                v-model="normalInput"
-                type="textarea"
-                :rows="2"
-                placeholder="输入您的问题...（Enter 发送，Shift+Enter 换行）"
-                resize="none"
-                :disabled="isNormalLoading"
-                @keydown="onNormalKeyDown"
-              />
-              <div class="input-actions">
-                <el-button
-                  type="primary"
-                  :loading="isNormalLoading"
-                  :disabled="!normalInput.trim()"
-                  @click="onNormalSend"
-                  class="send-btn"
-                >
-                  <el-icon><Promotion /></el-icon>
-                  <span>{{ isNormalLoading ? '生成中...' : '发送' }}</span>
-                </el-button>
-                <el-button v-if="normalMessages.length > 0" plain @click="onNormalClear">清空对话</el-button>
-              </div>
-            </div>
-          </div>
-        </el-tab-pane>
-
-        <!-- ========== Tab 2：流式对话 ========== -->
-        <el-tab-pane label="🌊 流式对话（逐字输出）" name="stream">
-          <div class="chat-messages" ref="streamContainer">
-            <div v-if="streamMessages.length === 0" class="welcome-section">
-              <div class="welcome-icon">
-                <svg viewBox="0 0 1024 1024" width="56" height="56">
-                  <path fill="#10b981" d="M512 128C299.93 128 128 277.42 128 464c0 104.23 58.8 197.42 151.85 263.38L256 896h288l128-96c90.4-55.8 144-133.6 144-220.62 0-186.58-171.93-347.38-384-347.38z" />
-                </svg>
-              </div>
-              <h2 class="welcome-title">流式对话模式</h2>
-              <p class="welcome-desc">基于 SSE（Server-Sent Events），后端边生成边推送，前端逐字渲染</p>
-              <div class="quick-questions">
-                <div v-for="(q, idx) in quickQuestions" :key="idx" class="quick-item stream" @click="onStreamQuick(q)">
-                  {{ q }}
-                </div>
-              </div>
-            </div>
-
-            <div
-              v-for="msg in streamMessages"
-              :key="msg.id"
-              :class="['message-row', msg.role === 'user' ? 'is-user' : 'is-assistant']"
+          <el-select
+            v-model="currentModel"
+            size="small"
+            placeholder="选择模型"
+            clearable
+            class="model-picker"
+            @change="handleModelChange"
+          >
+            <el-option
+              v-for="m in modelOptions"
+              :key="m.value"
+              :label="m.label"
+              :value="m.value"
             >
-              <div class="message-avatar">
-                <el-avatar :size="36" :style="{ background: msg.role === 'user' ? '#10b981' : '#409eff' }">
-                  {{ msg.role === 'user' ? 'U' : 'AI' }}
-                </el-avatar>
-              </div>
-              <div class="message-body">
-                <div class="message-meta">
-                  <span class="message-role">{{ msg.role === 'user' ? (authStore.username || '我') : 'AI 助手' }}</span>
-                  <span class="message-time">{{ msg.time }}</span>
-                </div>
-                <div class="message-bubble">
-                  <div v-if="msg.streaming && !msg.content" class="typing-indicator"><span></span><span></span><span></span></div>
-                  <div class="message-content" :class="{ 'has-cursor': msg.streaming && msg.content }">{{ msg.content }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
+              <span class="model-option">
+                <span class="model-emoji">{{ m.emoji }}</span>
+                {{ m.label }}
+              </span>
+            </el-option>
+          </el-select>
+          <el-button
+            size="small"
+            :icon="Delete"
+            @click="handleClear"
+            :disabled="isProcessingCurrent"
+            class="clear-btn desktop-only"
+          >
+            清空对话
+          </el-button>
+          <el-button
+            size="small"
+            :icon="Delete"
+            circle
+            @click="handleClear"
+            :disabled="isProcessingCurrent"
+            class="clear-btn mobile-only"
+          />
+        </div>
+      </div>
 
-          <div class="chat-input-area">
-            <div class="input-wrapper">
-              <div class="input-topbar">
-                <el-select v-model="streamModel" size="default" :disabled="isStreaming" style="width: 240px">
-                  <el-option v-for="m in availableModels" :key="m.value" :label="m.label" :value="m.value" />
-                </el-select>
-                <span class="mode-badge stream">SSE 逐字推送</span>
-              </div>
-              <el-input
-                v-model="streamInput"
-                type="textarea"
-                :rows="2"
-                placeholder="输入您的问题...（Enter 发送，Shift+Enter 换行）"
-                resize="none"
-                :disabled="isStreaming"
-                @keydown="onStreamKeyDown"
-              />
-              <div class="input-actions">
-                <el-button
-                  type="primary"
-                  :loading="isStreaming"
-                  :disabled="!streamInput.trim()"
-                  @click="onStreamSend"
-                  class="send-btn"
-                >
-                  <el-icon><Promotion /></el-icon>
-                  <span>{{ isStreaming ? '生成中...' : '发送' }}</span>
-                </el-button>
-                <el-button v-if="isStreaming" @click="onStreamStop">停止</el-button>
-                <el-button v-if="streamMessages.length > 0" plain @click="onStreamClear">清空对话</el-button>
-              </div>
-            </div>
-          </div>
-        </el-tab-pane>
-      </el-tabs>
+      <!-- 移动端：模式切换（放在工具栏下方） -->
+      <div class="mobile-mode-bar mobile-only" v-if="!isSingleMode">
+        <button
+          v-for="mode in visibleModes"
+          :key="mode"
+          :class="['mobile-mode-btn', { active: chatStore.currentMode === mode }]"
+          @click="handleSwitchMode(mode)"
+        >
+          <span>{{ mode === 'normal' ? '💬 普通对话' : '⚡ 流式对话' }}</span>
+        </button>
+      </div>
+
+      <!-- 对话内容（根据当前对话的模式显示相应的 pane） -->
+      <ChatNormalPane
+        v-show="chatStore.currentMode === 'normal'"
+        ref="normalPaneRef"
+      />
+      <ChatStreamPane
+        v-show="chatStore.currentMode === 'stream'"
+        ref="streamPaneRef"
+      />
+
+      <!-- 输入框 -->
+      <ChatInput
+        :disabled="isProcessingCurrent"
+        :loading="isProcessingCurrent"
+        :current-mode="chatStore.currentMode"
+        :quick-items="quickItems"
+        :placeholder="chatStore.currentMode === 'stream' ? '输入问题，实时流式输出...' : '输入问题，按 Enter 发送'"
+        @send="handleSend"
+        @quick="handleSend"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Promotion } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
-import { useChatNormal } from '@/composables/useChatNormal'
-import { useChatStream } from '@/composables/useChatStream'
+import { ref, computed, watch, onMounted } from 'vue'
+import { Delete } from '@element-plus/icons-vue'
+import { useChatStore } from '@/stores/chat'
+import ChatNormalPane from '@/components/chat/ChatNormalPane.vue'
+import ChatStreamPane from '@/components/chat/ChatStreamPane.vue'
+import ChatInput from '@/components/chat/ChatInput.vue'
+import ConversationSidebar from '@/components/chat/ConversationSidebar.vue'
 
-const authStore = useAuthStore()
+const chatStore = useChatStore()
 
-// ===== 两个容器 ref（给各自的 composable 做自动滚动） =====
-const normalContainer = ref<HTMLElement>()
-const streamContainer = ref<HTMLElement>()
+// 移动端对话列表抽屉
+const drawerVisible = ref(false)
 
-const {
-  messages: normalMessages,
-  isLoading: isNormalLoading,
-  sendMessage: normalSend,
-  clearMessages: normalClear
-} = useChatNormal(normalContainer)
+/* ====== 模式切换（从环境变量读取） ====== */
+const rawChatModes = import.meta.env.VITE_CHAT_MODES
+console.log(`[Chat] 从环境变量读到 VITE_CHAT_MODES = ${JSON.stringify(rawChatModes)}`)
 
-const {
-  messages: streamMessages,
-  isStreaming,
-  sendMessage: streamSend,
-  stopStreaming: streamStop,
-  clearMessages: streamClear
-} = useChatStream(streamContainer)
-
-// ===== 模型选择 =====
-const availableModels = [
-  { value: 'qwen-turbo', label: '通义千问 Turbo' },
-  { value: 'qwen-plus', label: '通义千问 Plus' },
-  { value: 'gpt-4o', label: 'GPT-4o' }
-]
-const normalModel = ref('qwen-turbo')
-const streamModel = ref('qwen-turbo')
-
-// ===== 快捷问题 =====
-const quickQuestions = [
-  '帮我写一段自我介绍',
-  '总结一下人工智能的发展趋势',
-  '如何学习编程？',
-  '给我推荐几本好书'
-]
-
-// ===== Tab 切换 =====
-const activeTab = ref<'normal' | 'stream'>('stream')
-function onTabChange() {
-  nextTick(() => {
-    // 切 tab 后把滚动条拉到底，保证新消息可见
-    const el = activeTab.value === 'normal' ? normalContainer.value : streamContainer.value
-    if (el) el.scrollTop = el.scrollHeight
+const validModes: ('normal' | 'stream')[] = []
+const invalidModes: string[] = []
+;(rawChatModes || 'normal,stream')
+  .split(',')
+  .map((m: string) => m.trim())
+  .filter((m: string) => m.length > 0)
+  .forEach((m: string) => {
+    if (m === 'normal' || m === 'stream') {
+      validModes.push(m)
+    } else {
+      invalidModes.push(m)
+    }
   })
+
+if (invalidModes.length > 0) {
+  console.warn(
+    `[Chat] VITE_CHAT_MODES 中有无效值（已忽略）: ${invalidModes.join(', ')}。合法取值：normal, stream`
+  )
 }
 
-// ===== 普通对话：输入 & 操作 =====
-const normalInput = ref('')
+const visibleModes: ('normal' | 'stream')[] = validModes.length > 0 ? validModes : ['normal']
+console.log(
+  `[Chat] 最终显示的模式: ${JSON.stringify(visibleModes)}（默认: ${visibleModes[0]}，${visibleModes.length <= 1 ? '单模式，隐藏切换按钮' : '多模式，显示切换按钮'}）`
+)
 
-function onNormalQuick(text: string) {
-  normalInput.value = text
-  onNormalSend()
-}
+const isSingleMode = computed(() => visibleModes.length <= 1)
 
-function onNormalKeyDown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey && !isNormalLoading.value) {
-    e.preventDefault()
-    onNormalSend()
+/* ====== 模型选择 ====== */
+const modelOptions = [
+  { label: 'DeepSeek', value: 'deepseek', emoji: '🧠' },
+  { label: '千问', value: 'qwen', emoji: '🌐' },
+  { label: '文心一言', value: 'ernie', emoji: '🎯' },
+  { label: 'GPT', value: 'gpt', emoji: '🤖' }
+]
+
+const quickItems = ['介绍一下你自己', '解释微服务架构', '写一个 Hello World 程序']
+
+// 双向绑定的本地模型选择，保持和当前对话的 model 同步
+const currentModel = ref<string>(chatStore.current?.model || '')
+
+watch(
+  () => chatStore.current?.model,
+  (newModel) => {
+    currentModel.value = newModel || ''
+  }
+)
+
+/* ====== 标题和状态 ====== */
+const chatTitle = computed(() => {
+  const modeLabel = chatStore.currentMode === 'stream' ? '⚡ 流式对话' : '💬 普通对话'
+  const convTitle = chatStore.current?.title
+  if (convTitle && convTitle !== '新对话') {
+    return `${modeLabel} · ${convTitle}`
+  }
+  return modeLabel
+})
+
+const isProcessingCurrent = computed(() => {
+  if (!chatStore.currentId) return false
+  if (chatStore.currentMode === 'normal') {
+    return chatStore.isLoading(chatStore.currentId)
+  }
+  return chatStore.isStreaming(chatStore.currentId)
+})
+
+/* ====== Refs ====== */
+const normalPaneRef = ref<InstanceType<typeof ChatNormalPane>>()
+const streamPaneRef = ref<InstanceType<typeof ChatStreamPane>>()
+
+/* ====== 事件处理 ====== */
+async function handleSend(text: string) {
+  if (!text.trim()) return
+
+  // 确保当前对话存在；否则自动创建
+  await chatStore.ensureCurrent(visibleModes[0], currentModel.value || undefined)
+
+  if (chatStore.currentMode === 'normal') {
+    normalPaneRef.value?.sendMessage(text)
+  } else {
+    streamPaneRef.value?.sendMessage(text)
   }
 }
 
-function onNormalSend() {
-  normalSend(normalInput.value, normalModel.value)
-  normalInput.value = ''
+function handleClear() {
+  if (chatStore.currentMode === 'normal') {
+    normalPaneRef.value?.clearMessages()
+  } else {
+    streamPaneRef.value?.clearMessages()
+  }
 }
 
-async function onNormalClear() {
+/**
+ * 切换模式 —— 无消息时直接切换，有消息时新建对话
+ */
+function handleSwitchMode(mode: 'normal' | 'stream') {
+  const current = chatStore.current
+  if (!current) {
+    chatStore.createConversation(mode, currentModel.value || undefined)
+    return
+  }
+  if (current.mode === mode) return
+
+  if (current.messages.length > 0) {
+    chatStore.createConversation(mode, current.model)
+  } else {
+    chatStore.switchMode(mode)
+  }
+}
+
+function handleModelChange(value: string) {
+  if (!chatStore.current) return
+  chatStore.setModel(value || undefined)
+}
+
+/* ====== 初始化 ====== */
+onMounted(async () => {
   try {
-    await ElMessageBox.confirm('确定清空普通对话吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    await normalClear()
-    ElMessage.success('对话已清空')
-  } catch {
-    // cancel
+    await chatStore.fetchSessions()
+  } catch (e) {
+    console.error('[Chat] 加载历史对话失败:', e)
   }
-}
-
-// ===== 流式对话：输入 & 操作 =====
-const streamInput = ref('')
-
-function onStreamQuick(text: string) {
-  streamInput.value = text
-  onStreamSend()
-}
-
-function onStreamKeyDown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey && !isStreaming.value) {
-    e.preventDefault()
-    onStreamSend()
-  }
-}
-
-function onStreamSend() {
-  streamSend(streamInput.value, streamModel.value)
-  streamInput.value = ''
-}
-
-function onStreamStop() {
-  streamStop()
-  ElMessage.info('已停止生成')
-}
-
-async function onStreamClear() {
-  try {
-    await ElMessageBox.confirm('确定清空流式对话吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    await streamClear()
-    ElMessage.success('对话已清空')
-  } catch {
-    // cancel
-  }
-}
+  // 确保页面加载后总有一个会话可用
+  await chatStore.ensureCurrent(visibleModes[0], currentModel.value || undefined)
+})
 </script>
 
 <style scoped>
 .chat-page {
+  display: flex;
   height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  background: #f7f8fa;
 }
-.chat-container {
+
+.chat-main {
   flex: 1;
-  background: #fff;
-  border-radius: 12px;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   overflow: hidden;
-  min-height: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
-.chat-tabs {
-  flex: 1;
+
+.chat-header {
   display: flex;
-  flex-direction: column;
-  margin: 0;
-  min-height: 0;
-}
-:deep(.el-tabs__header) {
-  margin: 0;
-  padding: 0 24px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e5e7eb;
-}
-:deep(.el-tabs__item) {
-  font-size: 15px;
-  font-weight: 500;
-  color: #6b7280;
-  height: 56px;
-  line-height: 56px;
-}
-:deep(.el-tabs__item.is-active) {
-  color: #409eff;
-}
-:deep(.el-tabs__content) {
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
-:deep(.el-tab-pane) {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.chat-messages {
-  flex: 1;
-  padding: 24px;
-  overflow-y: auto;
-  min-height: 0;
-  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
-  min-height: 0;
-}
-.welcome-section {
-  text-align: center;
-  padding: 40px 20px;
-}
-.welcome-icon {
-  width: 80px;
-  height: 80px;
-  background: #eff6ff;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-.welcome-title {
-  font-size: 24px;
-  color: #1f2937;
-  margin: 0 0 8px 0;
-  font-weight: 600;
-}
-.welcome-desc {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 0 0 24px 0;
-}
-.quick-questions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: center;
-  max-width: 720px;
-  margin: 0 auto;
-}
-.quick-item {
-  padding: 10px 18px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 20px;
-  font-size: 13px;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.quick-item:hover {
-  background: #409eff;
-  color: #fff;
-  border-color: #409eff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
-}
-.quick-item.stream:hover {
-  background: #10b981;
-  border-color: #10b981;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-}
-.message-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
-  animation: fadeInUp 0.25s ease-out;
-}
-.message-row.is-user {
-  flex-direction: row-reverse;
-}
-.message-body {
-  max-width: 72%;
-}
-.message-row.is-user .message-body { text-align: right; }
-.message-meta {
-  font-size: 11px;
-  color: #9ca3af;
-  margin-bottom: 6px;
-  letter-spacing: 0.3px;
-}
-.message-role {
-  margin-right: 8px;
-  font-weight: 600;
-  color: #4b5563;
-}
-.message-time { color: #9ca3af; }
-.message-bubble {
-  padding: 12px 16px;
-  border-radius: 12px;
-  display: inline-block;
-  text-align: left;
-  word-break: break-word;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-.message-row.is-assistant .message-bubble {
-  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
-  color: #1f2937;
-  border-bottom-left-radius: 4px;
-  border: 1px solid #e5e7eb;
-}
-.message-row.is-user .message-bubble {
-  background: linear-gradient(135deg, #409eff 0%, #5cafff 100%);
-  color: #fff;
-  border-bottom-right-radius: 4px;
-  box-shadow: 0 2px 6px rgba(64, 158, 255, 0.25);
-}
-.message-content {
-  font-size: 14px;
-  line-height: 1.8;
-  white-space: pre-wrap;
-}
-.message-row.is-assistant .message-content {
-  min-height: 18px;
-}
-.message-content.has-cursor::after {
-  content: '▌';
-  margin-left: 3px;
-  color: #409eff;
-  font-weight: bold;
-  animation: blink 0.85s infinite;
-}
-@keyframes blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
-}
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.typing-indicator {
-  display: inline-flex;
-  gap: 4px;
-}
-.typing-indicator span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #9ca3af;
-  animation: bounce 1.4s infinite ease-in-out;
-}
-.typing-indicator span:nth-child(2) { animation-delay: 0.16s; }
-.typing-indicator span:nth-child(3) { animation-delay: 0.32s; }
-@keyframes bounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
-  40% { transform: scale(1); opacity: 1; }
-}
-.chat-input-area {
-  padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-  background: #fff;
-}
-.input-wrapper {
-  max-width: 900px;
-  margin: 0 auto;
-}
-.input-topbar {
-  display: flex;
-  align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  align-items: center;
+  padding: 14px 24px;
+  background: #fff;
+  border-bottom: 1px solid #f3f4f6;
+  flex-shrink: 0;
+  z-index: 10;
 }
-.mode-badge {
-  font-size: 12px;
-  padding: 3px 10px;
-  border-radius: 12px;
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.header-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #4f6ef7 0%, #7c5cfc 100%);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.chat-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  letter-spacing: -0.3px;
+  max-width: 420px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-badge {
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.mode-toggle {
+  display: flex;
+  background: #f3f4f6;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.mode-btn.active {
+  background: #fff;
+  color: #4f6ef7;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   font-weight: 500;
 }
-.mode-badge.normal {
-  background: #eff6ff;
-  color: #409eff;
+
+.mode-btn:hover:not(.active) {
+  color: #374151;
 }
-.mode-badge.stream {
-  background: #ecfdf5;
-  color: #10b981;
+
+.mode-icon {
+  font-size: 14px;
 }
-.input-actions {
-  margin-top: 12px;
+
+.model-picker {
+  width: 140px;
+}
+
+.model-option {
   display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
 }
-.send-btn {
-  min-width: 100px;
+
+.model-emoji {
+  font-size: 16px;
+}
+
+.clear-btn {
+  border-radius: 8px;
+}
+
+/* ============================================
+   移动端：<= 768px
+   ============================================ */
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+
+  .chat-page {
+    background: #fafbfc;
+  }
+
+  .chat-header {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .chat-title {
+    font-size: 15px;
+    max-width: 140px;
+  }
+
+  /* 汉堡菜单按钮 */
+  .menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: #eef2ff;
+    color: #4f6ef7;
+    border-radius: 10px;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  /* 模型选择器精简 */
+  .model-picker {
+    width: 100px;
+  }
+  :deep(.model-picker .el-select__placeholder),
+  :deep(.model-picker .el-select__selected-item) {
+    font-size: 12px;
+  }
+
+  /* 移动端模式切换横条 */
+  .mobile-mode-bar {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #fff;
+    border-bottom: 1px solid #f3f4f6;
+    flex-shrink: 0;
+  }
+  .mobile-mode-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    border-radius: 20px;
+    font-size: 13px;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mobile-mode-btn.active {
+    background: #4f6ef7;
+    color: #fff;
+    border-color: #4f6ef7;
+    font-weight: 500;
+  }
+}
+
+/* 大屏下隐藏 mobile-only */
+.mobile-only {
+  display: none !important;
+}
+@media (max-width: 768px) {
+  .mobile-only {
+    display: inline-flex !important;
+  }
+}
+
+/* 抽屉容器背景 */
+:deep(.conv-drawer .el-drawer__body) {
+  padding: 0;
+  background: #f7f8fa;
 }
 </style>

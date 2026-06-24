@@ -135,11 +135,11 @@ async function handleSubmit() {
           '提示',
           { confirmButtonText: '去登录', cancelButtonText: '取消', type: 'success' }
         )
-        authStore.doLogout()
+        await authStore.doLogout()
         router.push('/login')
       } catch {
         /* user chose not to logout - force logout anyway since backend invalidates token */
-        authStore.doLogout()
+        await authStore.doLogout()
         router.push('/login')
       }
     } finally {

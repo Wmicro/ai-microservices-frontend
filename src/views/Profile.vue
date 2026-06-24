@@ -101,6 +101,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { UserFilled, Edit, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { formatDate } from '@/utils/date'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -120,11 +121,6 @@ const profileRules: FormRules = {
   ]
 }
 
-function formatDate(date?: string | null) {
-  if (!date) return '-'
-  return date.replace('T', ' ').split('.')[0]
-}
-
 async function handleRefresh() {
   try {
     await authStore.loadProfile(true)
@@ -142,16 +138,19 @@ function syncForm() {
 
 async function handleSave() {
   if (!profileFormRef.value) return
-  await profileFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    saving.value = true
-    try {
-      await authStore.updateProfile({ email: profileForm.email || undefined })
-      ElMessage.success('保存成功')
-    } finally {
-      saving.value = false
-    }
-  })
+  try {
+    await profileFormRef.value.validate()
+  } catch {
+    // 表单校验不通过，不执行保存
+    return
+  }
+  saving.value = true
+  try {
+    await authStore.updateProfile({ email: profileForm.email || undefined })
+    ElMessage.success('保存成功')
+  } finally {
+    saving.value = false
+  }
 }
 
 async function handleDeleteAccount() {
