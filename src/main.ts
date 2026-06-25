@@ -27,6 +27,10 @@ import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 
+// 导入 vue-virtual-scroller 虚拟滚动（用于长消息列表性能优化）
+import { RecycleScroller, DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
+
 // 创建 Vue 应用实例 传入 App 组件（根组件）作为参数
 const app = createApp(App)
 
@@ -36,6 +40,10 @@ app.use(router)
 
 // 使用 Element Plus 插件，注册所有 UI 组件
 app.use(ElementPlus)
+// 注册全局 RecycleScroller 组件
+app.component('RecycleScroller', RecycleScroller)
+app.component('DynamicScroller', DynamicScroller)
+app.component('DynamicScrollerItem', DynamicScrollerItem)
 
 // 将应用挂载到 index.html 中的 #app 元素上
 // 这是应用真正开始运行的地方
