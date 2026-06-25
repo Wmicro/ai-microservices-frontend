@@ -242,6 +242,196 @@ http://your-domain.com/api/auth/login   # API（由 Nginx 转发到后端）
 
 ---
 
+## 📱 打包成 iOS / Android 手机客户端（Capacitor）
+
+> 使用 **Capacitor**（Ionic 团队出品）将现有 Vue 3 前端项目零侵入地打包为原生 iOS / Android App，业务代码无需修改。
+
+### 🎯 方案对比
+
+| 方案 | 技术 | iOS 包体 | Android 包体 | 启动速度 | 推荐度 |
+|------|------|---------|-------------|---------|--------|
+| **Capacitor** | 系统 WebView + 轻量桥接 | ~15 MB | ~10 MB | 极快 | ⭐⭐⭐⭐⭐ |
+| Cordova | 系统 WebView + 插件 | ~20 MB | ~15 MB | 一般 | ⭐⭐⭐ |
+| React Native | 原生组件 + JS 引擎 | ~40 MB | ~30 MB | 较快 | ⭐⭐⭐（需要重写 UI） |
+| Flutter | 自绘引擎 + Dart | ~50 MB | ~40 MB | 极快 | ⭐⭐⭐（需要重写 UI） |
+
+本项目选择 **Capacitor**，因为 Vue 3 + Element Plus 已做移动端响应式适配，现有页面可直接跑在手机 WebView 中。
+
+### 🧰 依赖安装（首次执行）
+
+```bash
+cd /Users/wangjun/IdeaProjects/ai-microservices-frontend
+npm install @capacitor/core @capacitor/ios @capacitor/android
+npm install --save-dev @capacitor/cli
+```
+
+### 🔧 package.json 脚本（已在 scripts 中配置）
+
+| 命令 | 说明 |
+|------|------|
+| `npm run cap:init` | 首次初始化 Capacitor 项目（生成 ios/ 和 android/） |
+| `npm run cap:sync` | 构建前端 + 同步资源到 iOS/Android 项目（最常用） |
+| `npm run cap:ios` | 打开 Xcode 构建/调试 iOS App（需在 Mac 上 + 安装 Xcode） |
+| `npm run cap:android` | 打开 Android Studio 构建/调试 Android App（需安装 Android Studio） |
+| `npm run cap:build:ios` | 命令行构建 iOS App（需配置签名证书） |
+| `npm run cap:build:android` | 命令行构建 Android APK |
+
+### 📄 关键配置文件
+
+在项目根目录创建 `capacitor.config.ts`：
+
+```typescript
+import { CapacitorConfig } from '@capacitor/cli'
+
+const config: CapacitorConfig = {
+  // App 唯一标识（Android 包名 / iOS Bundle ID），建议反向域名
+  appId: 'com.ai.microservices.app',
+  // App 显示名称（手机桌面图标下方的文字）
+  appName: 'AI 智能平台',
+  // 打包产物目录（Vite build 后输出到 dist，Capacitor 从这里复制资源）
+  webDir: 'dist',
+  // 打包时复制 dist 到原生项目，不要打包 node_modules
+  bundledWebRuntime: false,
+  server: {
+    androidScheme: 'https',
+  },
+  // iOS 配置
+  ios: {
+    scheme: 'AIApp',
+    iPadAllowsMultitasking: false,
+  },
+  // Android 配置
+  android: {
+    buildOptions: {
+      signingType: 'apk',
+    },
+  },
+  // 插件配置
+  plugins: {
+    StatusBar: {
+      style: 'LIGHT_CONTENT',
+      backgroundColor: '#4f6ef7',
+    },
+    SplashScreen: {
+      launchShowDuration: 800,
+      launchAutoHide: true,
+      backgroundColor: '#4f6ef7',
+      showSpinner: false,
+    },
+  },
+}
+
+export default config
+```
+
+### ⚠️ 重要：API 地址配置（打包前必须正确）
+
+打包成 App 后，**WebView 中没有 Vite 代理**，必须在 `.env` 中配置**真实公网可访问**的后端地址：
+
+```env
+# 错误示例（App 内无效）
+VITE_API_BASE_URL=http://localhost:10000
+
+# 正确示例（请替换为你的真实后端地址）
+VITE_API_BASE_URL=http://192.168.1.100:10000
+# 或使用 HTTPS 域名
+VITE_API_BASE_URL=https://api.example.com
+```
+
+同时后端需允许跨域（CORS），至少配置：
+
+```
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: Content-Type, Authorization
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+```
+
+### 📱 vite.config.ts 已确保的配置
+
+`vite.config.ts` 中 `base: './'` 已配置，确保 Capacitor WebView 以 `file://` 协议能正确加载 CSS/JS 资源。
+
+### 🚀 完整打包流程
+
+#### 第一次执行：初始化 + 构建
+
+```bash
+# 1. 安装依赖
+npm install
+
+# 2. 在 .env 中填写真实后端地址
+#    VITE_API_BASE_URL=http://你的服务器IP或域名
+
+# 3. 初始化 Capacitor 项目
+npm run cap:init
+# 按提示输入 appId 和 appName
+
+# 4. 添加 iOS / Android 平台
+npx cap add ios
+npx cap add android
+
+# 5. 构建并同步
+npm run cap:sync
+```
+
+#### 日常代码更新后：同步 + 打开
+
+```bash
+# 每次 Vue 代码修改后
+npm run cap:sync
+
+# 打开 Android Studio 构建 APK
+npm run cap:android
+
+# 或打开 Xcode 构建 iOS App
+npm run cap:ios
+```
+
+#### 生成可安装的 APK（Android）
+
+在 Android Studio 中：
+1. `Build → Build Bundle(s) / APK → Build APK`
+2. 构建完成后在 `android/app/build/outputs/apk/debug/app-debug.apk`
+3. 复制到手机直接安装
+
+#### 生成 IPA 安装包（iOS）
+
+在 Xcode 中：
+1. 选择真机设备（不能是模拟器）
+2. `Product → Archive`
+3. 在 Archives 窗口点击 `Distribute App`
+4. 选择 `Development` / `Ad Hoc` 导出可测试安装的 `.ipa`
+5. 上架 App Store 需 Apple Developer 账号（$99/年）
+
+### 🛡️ .gitignore 同步
+
+在 `.gitignore` 末尾追加以下内容（已有则不用重复）：
+
+```
+# Capacitor 原生项目构建产物
+/ios/
+/android/
+/capacitor.config.json
+```
+
+### ⚠️ 注意事项
+
+| 事项 | 说明 |
+|------|------|
+| **后端地址必须公网可达** | App 内无 Vite 代理，真机必须能访问到你的后端 |
+| **CORS 必须配置** | 后端需允许 `file://` 协议来源或通配符 `*` |
+| **HTTPS 推荐** | Android 9+ 默认拒绝明文 HTTP，建议后端启用 HTTPS |
+| **iOS 上架证书** | 需要 Apple Developer 账号 + 配置签名证书 |
+| **Android 签名** | 生成 keystore 文件用于正式发布签名 |
+| **原生能力扩展** | 如需相机、相册、文件、推送等，安装 Capacitor 官方插件即可，如 `npm install @capacitor/camera` |
+
+### 📚 参考资源
+
+- Capacitor 官方文档：https://capacitorjs.com/docs
+- Android Studio 下载：https://developer.android.com/studio
+- Xcode 下载：Mac App Store 搜索 "Xcode"
+
+---
+
 ## 📑 新增 / 修改文件清单
 
 ### ✅ 新增文件（12 个）
