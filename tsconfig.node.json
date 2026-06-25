@@ -10,6 +10,8 @@
     "module": "ESNext",
     // 跳过类型声明文件的检查（提升编译速度）
     "skipLibCheck": true,
+    // vitest 类型声明
+    "types": ["vitest/config"],
 
     /* Bundler 模式配置 */
     // 使用 bundler 模式解析模块（适配 Vite 等构建工具）

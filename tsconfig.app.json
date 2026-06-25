@@ -11,6 +11,10 @@
       // @ 符号映射到 src 目录
       "@/*": ["src/*"]
     },
+    // 指定编译目标库（ES2021 支持 replaceAll 等）
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+    // vitest 全局类型
+    "types": ["vitest/globals"],
     // 启用严格类型检查模式（推荐开启）
     "strict": true,
     // 禁止未使用的局部变量（帮助发现无用代码）
