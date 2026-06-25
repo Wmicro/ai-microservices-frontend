@@ -29,9 +29,13 @@ export function refreshToken(refreshTokenValue: string) {
   )
 }
 
-/** 用户登出 */
+/**
+ * 用户登出（调用后端 /api/auth/logout
+ * 后端期望：POST + Authorization: Bearer <token>
+ * Authorization header 由 axios 拦截器自动注入
+ */
 export function logout() {
-  return axios.post('/api/auth/logout')
+  return axios.post<unknown, void>('/api/auth/logout', {})
 }
 
 /** 验证 Token 是否有效 */

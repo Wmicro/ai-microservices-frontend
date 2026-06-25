@@ -14,11 +14,10 @@ import type {
 
 export const useAuthStore = defineStore('auth', () => {
   // ===== 基础登录状态 =====
+  const rawUserId = localStorage.getItem('userId')
   const token = ref<string | null>(localStorage.getItem('token'))
   const refreshToken = ref<string | null>(localStorage.getItem('refreshToken'))
-  const userId = ref<number | null>(
-    localStorage.getItem('userId') ? Number(localStorage.getItem('userId')) : null
-  )
+  const userId = ref<number | null>(rawUserId ? Number(rawUserId) : null)
   const username = ref<string | null>(localStorage.getItem('username'))
   const email = ref<string | null>(localStorage.getItem('email'))
   const isLoggedIn = computed(() => !!token.value)
@@ -63,8 +62,24 @@ export const useAuthStore = defineStore('auth', () => {
     saveAuth(data)
   }
 
-  /** 登出（清空本地状态） */
-  function doLogout() {
+  /** 登出：先调用后端注销 token，再清空本地状态
+   * 即使后端调用失败（如 token 已过期），也会清空本地状态，保证前端总能正确退出
+   */
+  async function doLogout() {
+    // 先记录 token（清空后就拿不到了）
+    const hadToken = !!token.value
+
+    try {
+      // 调用后端注销 token，使其在服务端失效，防止被盗用
+      if (hadToken) {
+        await authApi.logout()
+      }
+    } catch (e) {
+      // 后端调用失败也要清空本地状态，保证前端不会卡住
+      console.warn('[auth-store] 登出后端调用失败，已强制清空本地状态', e)
+    }
+
+    // 清空本地状态
     token.value = null
     refreshToken.value = null
     userId.value = null
@@ -72,7 +87,9 @@ export const useAuthStore = defineStore('auth', () => {
     email.value = null
     profile.value = null
     devices.value = []
-    localStorage.clear()
+
+    const authKeys = ['token', 'refreshToken', 'userId', 'username', 'email']
+    authKeys.forEach((key) => localStorage.removeItem(key))
   }
 
   // ===== 个人中心方法 =====
@@ -133,7 +150,7 @@ export const useAuthStore = defineStore('auth', () => {
   /** 注销账号（需提供登录密码做二次校验） */
   async function deleteAccount(password: string) {
     await authApi.deleteAccount(password)
-    doLogout()
+    await doLogout()
   }
 
   return {
